@@ -17,7 +17,6 @@
 #define ROOT_DIR_ADDR 1
 
 int sfs_size;
-root_dir_t *current_entry;
 
 void mksfs(int fresh) {
 
@@ -49,13 +48,16 @@ int main(void) {
 //	printf("adding directories\n");
 
 	init_root_dir();
-	add_root_dir_entry(200, "test1");
+	add_root_dir_entry(257, "test1");
 	add_root_dir_entry(100, "test2");
 	add_root_dir_entry(25, "test3");
 	add_root_dir_entry(400, "test4");
 	add_root_dir_entry(800, "test5");
 
-	current_entry = &root_dir;
+	char *buffer_root_dir = get_rootdir_buffer();
+	printf("%d\n", *buffer_root_dir);
+
+//	current_entry = &root_dir;
 
 //	printf("printing directory\n");
 //	do {

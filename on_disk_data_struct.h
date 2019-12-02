@@ -46,9 +46,12 @@ struct root_dir_t {
 } root_dir;
 
 int init_root_dir();
+int sfs_getnextfilename(char *fname);
+char* get_rootdir_buffer();
 void* read_root_dir();
 int write_root_dir();
 int add_root_dir_entry(int i_node, char *filename);
+int remove_root_dir_entry(char *filename);
 int get_number_of_files();
 
 
