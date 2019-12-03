@@ -8,17 +8,19 @@
 
 typedef struct i_node inode;
 typedef struct root_dir_t root_dir_t;
+typedef struct root_dir_entry root_dir_entry;
 
 //SUPER BLOCK section
-struct {
+struct super_blk_t{
 	int magic;
 	int blk_size;
 	int sfs_size;
 	int root_dir_i_node;
+	int nb_files;
 } super_blk;
 
-int init_super_blk(int blk_size, int sfs_size, int root_dir_i_node);
-int* read_super_blk();
+int init_super_blk(int blk_size, int sfs_size, int root_dir_i_node, int nb_files);
+int read_super_blk();
 int write_super_blk();
 
 
@@ -39,15 +41,19 @@ int write_i_node(inode* i_node, int blk);
 
 
 //ROOT DIRECTORY section (root dir is implemented as a linked list)
-struct root_dir_t {
+struct root_dir_entry {
 	int i_node_index;
-	char *filename;
+	char filename[20];
+};
+
+struct root_dir_t {
+	root_dir_entry dir_entry;
 	root_dir_t *next;
 } root_dir;
 
 int init_root_dir();
 int sfs_getnextfilename(char *fname);
-char* get_rootdir_buffer();
+root_dir_entry* get_rootdir_buffer();
 void* read_root_dir();
 int write_root_dir();
 int add_root_dir_entry(int i_node, char *filename);

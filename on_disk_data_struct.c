@@ -23,7 +23,8 @@ root_dir_t *current_entry;
 /*Super block section											    */
 /*------------------------------------------------------------------*/
 
-int init_super_blk(int blk_size, int sfs_size, int root_dir_i_node) {
+int init_super_blk(int blk_size, int sfs_size, int root_dir_i_node,
+		int nb_files) {
 
 	printf("Initializing super block.\n");
 	BLOCK_SIZE = blk_size;
@@ -32,27 +33,31 @@ int init_super_blk(int blk_size, int sfs_size, int root_dir_i_node) {
 	super_blk.blk_size = blk_size;
 	super_blk.sfs_size = sfs_size;
 	super_blk.root_dir_i_node = root_dir_i_node;
+	super_blk.nb_files = nb_files;
 
 	return 0;
 }
 
-int* read_super_blk() {
+int read_super_blk() {
 
-	int *buffer = (int*) malloc(BLOCK_SIZE);
+	struct super_blk_t *super_blk_temp = (struct super_blk_t*) malloc (BLOCK_SIZE);
+	read_blocks(SUPER_BLK_ADDR, 1, super_blk_temp);
 
-	read_blocks(SUPER_BLK_ADDR, 1, buffer);
-	return buffer;
+	memcpy(&super_blk, super_blk_temp, sizeof(struct super_blk_t));
+	free(super_blk_temp);
+	return 0;
 }
 
 int write_super_blk() {
 
 	printf("Writing super block.\n");
-	int *buffer = (int*) malloc(BLOCK_SIZE);
-
-	*buffer = super_blk.magic;
-	*(buffer + 1) = super_blk.blk_size;
-	*(buffer + 2) = super_blk.sfs_size;
-	*(buffer + 3) = super_blk.root_dir_i_node;
+	struct super_blk_t *buffer = (struct super_blk_t *) malloc(BLOCK_SIZE);
+	memcpy(buffer, &super_blk, sizeof(struct super_blk_t));
+//	*buffer = super_blk.magic;
+//	*(buffer + 1) = super_blk.blk_size;
+//	*(buffer + 2) = super_blk.sfs_size;
+//	*(buffer + 3) = super_blk.root_dir_i_node;
+//	*(buffer + 4) = super_blk.nb_files;
 
 	write_blocks(SUPER_BLK_ADDR, 1, buffer);
 	free(buffer);
@@ -119,8 +124,7 @@ int init_root_dir() {
 
 	inode *root_dir_i_node = init_i_node(1); //Create root dir i-node (MUST CACHE) TODO replace 1 with allocate
 
-	root_dir.i_node_index = -1;
-	root_dir.filename = NULL;
+	root_dir.dir_entry.i_node_index = -1;
 	root_dir.next = NULL;
 
 	last_entry = &root_dir;
@@ -136,52 +140,62 @@ int sfs_getnextfilename(char *fname) {
 		return -1;
 
 	current_entry = current_entry->next;
-	fname = (char*) calloc(strlen(current_entry->filename) + 1, sizeof(char));
-	memcpy(fname, current_entry->filename, strlen(current_entry->filename));
+//	fname = (char*) calloc(strlen(current_entry->filename) + 1, sizeof(char));
+	memcpy(fname, current_entry->dir_entry.filename,
+			strlen(current_entry->dir_entry.filename));
 
 	return 0;
 }
 
 //Transforms the directory table into a buffer that will be written to disk
-//Format: inode1,filename1,inode2,filename2,inode3,filename3...
-char* get_rootdir_buffer() {
+root_dir_entry* get_rootdir_buffer() {
 
-	char *buffer;
-	char *entry_filename;
-	int entry_inode;
+	root_dir_entry *buffer;
+//	char *entry_filename;
+//	int entry_inode;
 
 	int offset = 0;
 	int nb_blocks = 1;		// #blocks currently needed to store buffer in disk
 
 	//If there are no files, buffer should be empty
-	if (current_entry->filename == NULL)
+	if (super_blk.nb_files == 0) {
+		printf("No files, rootdir buffer empty\n");
 		return NULL;
+	}
 
-	buffer = (char*) malloc(BLOCK_SIZE);	//Start by allocating only 1 block
+	buffer = (root_dir_entry*) malloc(BLOCK_SIZE);//Start by allocating only 1 block
 
 	do {
-		entry_filename = current_entry->filename;
-		entry_inode = current_entry->i_node_index;
 
-		printf("filename: %s, entry_inode: %d\n", entry_filename, entry_inode);
 		//Check for overflow before copying
-		if (offset + sizeof(int) + strlen(entry_filename) + 2 > nb_blocks * BLOCK_SIZE)
+		if (offset + sizeof(root_dir_entry) > nb_blocks * BLOCK_SIZE)
 			buffer = realloc(buffer, ++nb_blocks * BLOCK_SIZE);
 
-		//Copy i_node index of entry to buffer
-		memcpy(buffer + offset, &entry_inode, sizeof(int));
-		offset += sizeof(int);
-
-		//Add comma
-		*(buffer + offset++) = ',';
-
-		//Copy filename of entry to buffer
-		memcpy(buffer + offset, entry_filename, strlen(entry_filename));
-		offset += strlen(entry_filename);
-
-		//Add comma
-		*(buffer + offset++) = ',';
-
+		memcpy(buffer + offset, &(current_entry->dir_entry),
+				sizeof(root_dir_entry));
+		offset += sizeof(root_dir_entry);
+//		entry_filename = current_entry->filename;
+//		entry_inode = current_entry->i_node_index;
+//
+//		printf("filename: %s, entry_inode: %d\n", entry_filename, entry_inode);
+//		//Check for overflow before copying
+//		if (offset + sizeof(int) + strlen(entry_filename) + 2 > nb_blocks * BLOCK_SIZE)
+//			buffer = realloc(buffer, ++nb_blocks * BLOCK_SIZE);
+//
+//		//Copy i_node index of entry to buffer
+//		memcpy(buffer + offset, &entry_inode, sizeof(int));
+//		offset += sizeof(int);
+//
+//		//Add comma
+//		*(buffer + offset++) = ',';
+//
+//		//Copy filename of entry to buffer
+//		memcpy(buffer + offset, entry_filename, strlen(entry_filename));
+//		offset += strlen(entry_filename);
+//
+//		//Add comma
+//		*(buffer + offset++) = ',';
+//
 		current_entry = current_entry->next;
 	} while (current_entry != NULL);
 
@@ -202,28 +216,27 @@ int write_root_dir(inode *root_dir_inode) {
 //Adds entries (2 elements per entry: i_node, filename) to the root directory
 int add_root_dir_entry(int i_node, char *filename) {
 
-	if (root_dir.filename == NULL) {	//First entry in the directory
+	if (root_dir.dir_entry.i_node_index == -1) {//First entry in the directory
 		printf("first entry\n");
 
-		root_dir.filename = (char*) calloc(strlen(filename) + 1, sizeof(char));
-		memcpy(root_dir.filename, filename, strlen(filename));
-		root_dir.i_node_index = i_node;
+		memcpy(root_dir.dir_entry.filename, filename, strlen(filename));
+		root_dir.dir_entry.i_node_index = i_node;
 		root_dir.next = NULL;
 	} else {
 
 		printf("not first entry\n");
 		root_dir_t *root_dir_entry = (root_dir_t*) malloc(sizeof(root_dir_t));
 
-		root_dir_entry->filename = (char*) calloc(strlen(filename) + 1,
-				sizeof(char));
-		memcpy(root_dir_entry->filename, filename, strlen(filename));
-		root_dir_entry->i_node_index = i_node;
+		memcpy(root_dir_entry->dir_entry.filename, filename, strlen(filename));
+		root_dir_entry->dir_entry.i_node_index = i_node;
 		root_dir_entry->next = NULL;
 
 		//last_entry points to file that was just added to linked list
 		last_entry->next = root_dir_entry;
 		last_entry = last_entry->next;
 	}
+	super_blk.nb_files++;
+	write_super_blk();
 
 	return 0;
 }
