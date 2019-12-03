@@ -32,25 +32,29 @@ void mksfs(int fresh) {
 
 int main(void) {
 
-	int *buffer;
-
 	mksfs(1);
 
 //	inode *root_dir_i_node = init_i_node(1);
-	buffer = read_i_node(1);
+//	print_i_node(root_dir_i_node);
+//
+//	root_dir_i_node->mode = 21423;
+//	write_i_node(root_dir_i_node, 1);
+//
+//	inode *read_root_dir = read_i_node(1);
+//	print_i_node(read_root_dir);
 
-//	super_blk.magic = 3021;
-//	super_blk.blk_size = 75741;
-//	super_blk.sfs_size = 23142;
-//	super_blk.root_dir_i_node = 28548;
-//	super_blk.nb_files = 21319;
+	super_blk.magic = 3021;
+	super_blk.blk_size = 75741;
+	super_blk.sfs_size = 23142;
+	super_blk.root_dir_i_node = 28548;
+	super_blk.nb_files = 21319;
 
 	read_super_blk();
 
-	printf(
-			"magic: %d, blk_size: %d, sfs_size: %d, root_dir_i_node: %d, nbfiles: %d\n",
-			super_blk.magic, super_blk.blk_size, super_blk.sfs_size,
-			super_blk.root_dir_i_node, super_blk.nb_files);
+//	printf(
+//			"magic: %d, blk_size: %d, sfs_size: %d, root_dir_i_node: %d, nbfiles: %d\n",
+//			super_blk.magic, super_blk.blk_size, super_blk.sfs_size,
+//			super_blk.root_dir_i_node, super_blk.nb_files);
 
 //	printf("adding directories\n");
 
@@ -65,13 +69,14 @@ int main(void) {
 	add_root_dir_entry(2300, "test8");
 
 	read_super_blk();
-//
+
 	printf(
 			"magic: %d, blk_size: %d, sfs_size: %d, root_dir_i_node: %d, nbfiles: %d\n",
 			super_blk.magic, super_blk.blk_size, super_blk.sfs_size,
 			super_blk.root_dir_i_node, super_blk.nb_files);
 
-	root_dir_entry *root_dir_buffer = get_rootdir_buffer();
+	root_dir_entry *root_dir_buffer = (root_dir_entry*) malloc(BLK_SIZE);
+	get_rootdir_buffer(root_dir_buffer);
 
 	for (int i = 0; i < super_blk.nb_files; i++) {
 
@@ -88,7 +93,7 @@ int main(void) {
 //		current_entry = current_entry->next;
 //	} while (current_entry != NULL);
 
-	free(buffer);
+	free(root_dir_buffer);
 	return EXIT_SUCCESS;
 }
 

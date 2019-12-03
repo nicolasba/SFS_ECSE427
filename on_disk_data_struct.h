@@ -31,12 +31,12 @@ struct i_node {
 	int uid;
 	int gid;
 	int size;
-	int data_blk[12];
+	int data_blk[50];
 	int ind_pointer;
 };
 
 inode* init_i_node(int blk);
-int* read_i_node(int blk);
+inode* read_i_node(int blk) ;
 int write_i_node(inode* i_node, int blk);
 
 
@@ -53,12 +53,13 @@ struct root_dir_t {
 
 int init_root_dir();
 int sfs_getnextfilename(char *fname);
-root_dir_entry* get_rootdir_buffer();
+int get_rootdir_buffer(root_dir_entry* buffer);
 void* read_root_dir();
 int write_root_dir();
 int add_root_dir_entry(int i_node, char *filename);
 int remove_root_dir_entry(char *filename);
 int get_number_of_files();
+void print_i_node(inode *i_node);
 
 
 #endif /* ON_DISK_DATA_STRUCT_H_ */

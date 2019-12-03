@@ -40,7 +40,8 @@ int init_super_blk(int blk_size, int sfs_size, int root_dir_i_node,
 
 int read_super_blk() {
 
-	struct super_blk_t *super_blk_temp = (struct super_blk_t*) malloc (BLOCK_SIZE);
+	struct super_blk_t *super_blk_temp = (struct super_blk_t*) malloc(
+			BLOCK_SIZE);
 	read_blocks(SUPER_BLK_ADDR, 1, super_blk_temp);
 
 	memcpy(&super_blk, super_blk_temp, sizeof(struct super_blk_t));
@@ -51,16 +52,16 @@ int read_super_blk() {
 int write_super_blk() {
 
 	printf("Writing super block.\n");
-	struct super_blk_t *buffer = (struct super_blk_t *) malloc(BLOCK_SIZE);
-	memcpy(buffer, &super_blk, sizeof(struct super_blk_t));
+	struct super_blk_t *buffer_temp = (struct super_blk_t*) malloc(BLOCK_SIZE);
+	memcpy(buffer_temp, &super_blk, sizeof(struct super_blk_t));
 //	*buffer = super_blk.magic;
 //	*(buffer + 1) = super_blk.blk_size;
 //	*(buffer + 2) = super_blk.sfs_size;
 //	*(buffer + 3) = super_blk.root_dir_i_node;
 //	*(buffer + 4) = super_blk.nb_files;
 
-	write_blocks(SUPER_BLK_ADDR, 1, buffer);
-	free(buffer);
+	write_blocks(SUPER_BLK_ADDR, 1, buffer_temp);
+	free(buffer_temp);
 	return 0;
 }
 
@@ -78,7 +79,7 @@ inode* init_i_node(int blk) {
 	new_i_node->uid = 0;
 	new_i_node->size = 0;
 
-	for (int i = 0; i < 12; i++)
+	for (int i = 0; i < 50; i++)
 		new_i_node->data_blk[i] = -1;
 
 	new_i_node->ind_pointer = -1;
@@ -88,32 +89,42 @@ inode* init_i_node(int blk) {
 	return new_i_node;
 }
 
-int* read_i_node(int blk) {
+//Will read the contents of i-node at input block index
+inode* read_i_node(int blk) {
 
-	int *buffer = (int*) malloc(BLOCK_SIZE);
+	inode *i_node_in_blk = (inode*) malloc(sizeof(inode));
 
-	read_blocks(blk, 1, buffer);
-	return buffer;
+	inode *buffer_temp = (inode*) malloc(BLOCK_SIZE);
+	read_blocks(blk, 1, buffer_temp);
+
+	memcpy(i_node_in_blk, buffer_temp, sizeof(inode));
+
+	return i_node_in_blk;
 }
 
+//Writes i_node struct to input block index
 int write_i_node(inode *i_node, int blk) {
 
-	int *buffer = (int*) malloc(BLOCK_SIZE);
+	printf("Writing inode to blk %d\n", blk);
+	inode *buffer_temp = (inode*) malloc(BLOCK_SIZE);
+	memcpy(buffer_temp, i_node, sizeof(inode));
 
-	buffer[0] = i_node->mode;
-	buffer[1] = i_node->ln_count;
-	buffer[2] = i_node->gid;
-	buffer[3] = i_node->uid;
-	buffer[4] = i_node->size;
-
-	for (int i = 0; i < 12; i++)
-		buffer[5 + i] = i_node->data_blk[i];
-
-	buffer[17] = i_node->ind_pointer;
-
-	write_blocks(blk, 1, buffer);
-	free(buffer);
+	write_blocks(blk, 1, buffer_temp);
+	free(buffer_temp);
 	return 0;
+}
+
+void print_i_node(inode *i_node) {
+
+	printf("mode: %d, ln count: %d, uid: %d, gid: %d, size: %d, data_blks: ",
+			i_node->mode, i_node->ln_count, i_node->uid, i_node->gid,
+			i_node->size);
+
+	for (int i = 0; i < 50; i++) {
+		printf("%d ", i_node->data_blk[i]);
+	}
+
+	printf("indirect pointer: %d\n", i_node->ind_pointer);
 }
 
 /*------------------------------------------------------------------*/
@@ -148,25 +159,22 @@ int sfs_getnextfilename(char *fname) {
 }
 
 //Transforms the directory table into a buffer that will be written to disk
-root_dir_entry* get_rootdir_buffer() {
+//Returns number of blocks needed to store buffer
+int get_rootdir_buffer(root_dir_entry *buffer) {
 
-	root_dir_entry *buffer;
-//	char *entry_filename;
-//	int entry_inode;
-
+//	root_dir_entry *buffer;
 	int offset = 0;
 	int nb_blocks = 1;		// #blocks currently needed to store buffer in disk
 
 	//If there are no files, buffer should be empty
 	if (super_blk.nb_files == 0) {
 		printf("No files, rootdir buffer empty\n");
-		return NULL;
+		return 0;
 	}
 
-	buffer = (root_dir_entry*) malloc(BLOCK_SIZE);//Start by allocating only 1 block
+//	buffer = (root_dir_entry*) malloc(BLOCK_SIZE);//Start by allocating only 1 block
 
 	do {
-
 		//Check for overflow before copying
 		if (offset + sizeof(root_dir_entry) > nb_blocks * BLOCK_SIZE)
 			buffer = realloc(buffer, ++nb_blocks * BLOCK_SIZE);
@@ -174,57 +182,40 @@ root_dir_entry* get_rootdir_buffer() {
 		memcpy(buffer + offset, &(current_entry->dir_entry),
 				sizeof(root_dir_entry));
 		offset += sizeof(root_dir_entry);
-//		entry_filename = current_entry->filename;
-//		entry_inode = current_entry->i_node_index;
-//
-//		printf("filename: %s, entry_inode: %d\n", entry_filename, entry_inode);
-//		//Check for overflow before copying
-//		if (offset + sizeof(int) + strlen(entry_filename) + 2 > nb_blocks * BLOCK_SIZE)
-//			buffer = realloc(buffer, ++nb_blocks * BLOCK_SIZE);
-//
-//		//Copy i_node index of entry to buffer
-//		memcpy(buffer + offset, &entry_inode, sizeof(int));
-//		offset += sizeof(int);
-//
-//		//Add comma
-//		*(buffer + offset++) = ',';
-//
-//		//Copy filename of entry to buffer
-//		memcpy(buffer + offset, entry_filename, strlen(entry_filename));
-//		offset += strlen(entry_filename);
-//
-//		//Add comma
-//		*(buffer + offset++) = ',';
-//
+
 		current_entry = current_entry->next;
+
 	} while (current_entry != NULL);
 
 	current_entry = &root_dir; //Restore current entry to first entry
-	return buffer;
+	return nb_blocks;
 }
 
 int write_root_dir(inode *root_dir_inode) {
 
-//	char *buffer = (char*) calloc(BLOCK_SIZE, sizeof(char));
-//	int count
-//
-//	while (sfs_getnextfilename())
+	root_dir_entry *root_dir_buffer = (root_dir_entry*) malloc(BLOCK_SIZE);
+	int nb_blocks_buffer = get_rootdir_buffer(root_dir_buffer);
 
+	for (int i = 0; i < nb_blocks_buffer; i++) {
+
+	}
+
+	free(root_dir_buffer);
 	return 0;
 }
 
 //Adds entries (2 elements per entry: i_node, filename) to the root directory
 int add_root_dir_entry(int i_node, char *filename) {
 
-	if (root_dir.dir_entry.i_node_index == -1) {//First entry in the directory
-		printf("first entry\n");
+	if (super_blk.nb_files == 0) { //First entry in the directory
+//		printf("first entry\n");
 
 		memcpy(root_dir.dir_entry.filename, filename, strlen(filename));
 		root_dir.dir_entry.i_node_index = i_node;
 		root_dir.next = NULL;
 	} else {
 
-		printf("not first entry\n");
+//		printf("not first entry\n");
 		root_dir_t *root_dir_entry = (root_dir_t*) malloc(sizeof(root_dir_t));
 
 		memcpy(root_dir_entry->dir_entry.filename, filename, strlen(filename));
@@ -237,6 +228,11 @@ int add_root_dir_entry(int i_node, char *filename) {
 	}
 	super_blk.nb_files++;
 	write_super_blk();
+
+	return 0;
+}
+
+int remove_root_dir_entry(char *filename) {
 
 	return 0;
 }
