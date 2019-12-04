@@ -16,6 +16,7 @@
 int BLOCK_SIZE;
 
 //ROOT DIR vars
+int nb_files_root_dir_cache;
 root_dir_t *last_entry;
 root_dir_t *current_entry;
 
@@ -153,6 +154,7 @@ int init_root_dir(int fresh) {
 	root_dir.dir_entry.i_node_index = -1;
 	root_dir.next = NULL;
 
+	nb_files_root_dir_cache = 0; //At start, cache is empty
 	last_entry = &root_dir;
 	current_entry = &root_dir;
 	return 0;
@@ -173,7 +175,7 @@ int sfs_getnextfilename(char *fname) {
 	return 0;
 }
 
-//Transforms the directory table into a buffer that will be written to disk
+//Transforms the directory table cache into a buffer that will be written to disk
 //Returns number of blocks needed to store buffer
 int get_rootdir_buffer(root_dir_entry **buffer) {
 
@@ -181,7 +183,7 @@ int get_rootdir_buffer(root_dir_entry **buffer) {
 	int nb_blocks = 1;		// #blocks currently needed to store buffer in disk
 
 	//If there are no files, buffer should be empty
-	if (super_blk.nb_files == 0) {
+	if (nb_files_root_dir_cache == 0) {
 		printf("No files, rootdir buffer empty\n");
 		return 0;
 	}
@@ -246,12 +248,9 @@ int read_root_dir(inode *root_dir_inode) {
 	//MIGHT NEED TO CLEAR CURRENT ROOT DIR CACHE TODO
 //	root_dir.dir_entry.i_node_index = -1;
 
-	int existing_on_disk = 1;	//The entries being read here exist on disk (not new)
-
 	for (i = 0; i < super_blk.nb_files; i++) {
-
 		add_root_dir_entry((entries_across_blocks + i)->i_node_index,
-				(entries_across_blocks + i)->filename, existing_on_disk);
+				(entries_across_blocks + i)->filename);
 	}
 
 	free(entries_across_blocks);
@@ -290,7 +289,7 @@ int write_root_dir(inode *root_dir_inode, int inode_index) {
 	for (int i = 0; i < nb_blocks_buffer; i++) {
 		if (root_dir_inode->data_blk[i] == -1) {
 			//Allocate new data block (TODO)
-			allocated = (i == 0)?2:3;
+			allocated = (i == 0) ? 2 : 3;
 			root_dir_inode->data_blk[i] = allocated;
 		}
 
@@ -309,14 +308,14 @@ int write_root_dir(inode *root_dir_inode, int inode_index) {
 }
 
 //Adds entries (2 elements per entry: i_node, filename) to the root directory
-int add_root_dir_entry(int i_node, char *filename, int existing_on_disk) {
+int add_root_dir_entry(int i_node, char *filename) {
 
 	if (strlen(filename) > 20) {
 		printf("Filename too long.\n");
 		return -1;
 	}
 
-	if (root_dir.dir_entry.i_node_index == -1) { //First entry in the directory
+	if (nb_files_root_dir_cache == 0) { //First entry in the directory
 //		printf("first entry\n");
 
 		memcpy(root_dir.dir_entry.filename, filename, strlen(filename));
@@ -336,37 +335,95 @@ int add_root_dir_entry(int i_node, char *filename, int existing_on_disk) {
 		last_entry = last_entry->next;
 	}
 
-	//When starting sfs from existing file, we will read existing files into directory
-	//The nb of files recorded in the super block should not change
-	if (!existing_on_disk) {
-		super_blk.nb_files++;
-		write_super_blk();
-	}
-
+	nb_files_root_dir_cache++;
 	return 0;
 }
 
 int remove_root_dir_entry(char *filename) {
 
-	return 0;
+	root_dir_t *prev_entry;
+	if (super_blk.nb_files == 0) {
+		printf("Root directory cache is empty.\n");
+		return -1;
+	}
+
+	current_entry = &root_dir;
+	prev_entry = &root_dir;
+
+//	if (strcmp(current_entry->dir_entry.filename, filename) == 0) {
+//		//The entry to be removed is the only one in the directory
+//		if (current_entry->next == NULL)
+//			init_root_dir(0);
+//
+//		//Remove first and assign root_dir to second entry
+//		else
+//			root_dir = *(current_entry->next);
+//
+//		printf("Entry was removed.\n");
+//		return 0;
+//	}
+//
+//	current_entry = current_entry->next;
+
+	while (current_entry != NULL) {
+
+		//Found entry to remove
+		if (strcmp(current_entry->dir_entry.filename, filename) == 0) {
+
+			//Remove from linked list
+			prev_entry->next = current_entry->next;
+
+			//Entry to be removed is the first in the directory
+			if (current_entry == &root_dir) {
+				//Entry to be removed is the only entry in the directory
+				if (current_entry->next == NULL)
+					init_root_dir(0);
+				else
+					root_dir = *(current_entry->next);
+
+				printf("Entry to remove is the first in the directory.\n");
+			}
+			//Entry to be removed is the last in the directory
+			else if (current_entry == last_entry)
+				last_entry = prev_entry;
+
+			//I cant free root dir because it was not malloc
+			if (current_entry != &root_dir)
+				free(current_entry);
+
+			current_entry = &root_dir;
+			printf("Entry was removed.\n");
+			nb_files_root_dir_cache--;
+
+			return 0;
+		}
+
+		prev_entry = current_entry;
+		current_entry = current_entry->next;
+	}
+
+	current_entry = &root_dir;
+	printf("File to remove was not found.\n");
+	return -1;
 }
 
 void print_root_dir() {
 
 	root_dir_entry *root_dir_buffer = (root_dir_entry*) malloc(BLOCK_SIZE);
 
-	//0 blocks from root_dir_buffer
+//0 blocks from root_dir_buffer
 	if (get_rootdir_buffer(&root_dir_buffer) == 0) {
 		printf("Root_dir is empty.\n");
 		free(root_dir_buffer);
 		return;
 	}
 
-	for (int i = 0; i < super_blk.nb_files; i++) {
+	for (int i = 0; i < nb_files_root_dir_cache; i++) {
 		root_dir_entry entry = *(root_dir_buffer + i);
 		printf("inode: %d, filename: %s\n", entry.i_node_index, entry.filename);
 	}
 
+	printf("Number of files in rootdir cache: %d\n", nb_files_root_dir_cache);
 	free(root_dir_buffer);
 }
 

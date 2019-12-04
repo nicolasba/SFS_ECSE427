@@ -24,41 +24,68 @@ void mksfs(int fresh) {
 		write_super_blk();
 	} else {
 		init_disk(SFS_FILENAME_TEST, BLK_SIZE, NB_BLKS);
-
 	}
+}
+
+int sfs_fopen(char *name) {
+
+	//SEARCH FOR EXISTING FILENAME
+	//ONLY increase nb_files if file does not exist already
+	add_root_dir_entry(100, name);
+	super_blk.nb_files++;
+	write_super_blk();
+
 }
 
 int main(void) {
 
-//	//Test1.1
-//	//Init root dir
-//	mksfs(1);
-//
-//	read_super_blk();
-//	print_super_blk();
-//
-//	init_root_dir(1);
-//	inode *root_dir_inode = read_i_node(1);
-//	print_i_node(root_dir_inode);
+	//Test1.1
+	//Init root dir
+	mksfs(1);
+
+	read_super_blk();
+	print_super_blk();
+
+	init_root_dir(1);
+	inode *root_dir_inode = read_i_node(1);
+	print_i_node(root_dir_inode);
 //
 //	printf("adding directories\n");
 //	for (int i = 0; i < 50; i++)
-//		add_root_dir_entry(i, "test", 0);
-//	add_root_dir_entry(100, "test2", 0);
-//	add_root_dir_entry(25, "test3", 0);
-//	add_root_dir_entry(400, "test4", 0);
-//	add_root_dir_entry(800, "test5", 0);
-//	add_root_dir_entry(900, "test6666612345.exe", 0);
-//	add_root_dir_entry(145000, "test6", 0);
-//	add_root_dir_entry(2300, "test8", 0);
-//
-//	read_super_blk();
-//	print_super_blk();
-//
-//	print_root_dir();
-//	write_root_dir(root_dir_inode, ROOT_DIR_ADDR);
-//	root_dir_inode = read_i_node(1);
-//	print_i_node(root_dir_inode);
+//		add_root_dir_entry(i, "test");
+//	add_root_dir_entry(100, "test2");
+//	add_root_dir_entry(25, "test3");
+//	add_root_dir_entry(400, "test4");
+//	add_root_dir_entry(800, "test5");
+//	add_root_dir_entry(900, "test6666612345.exe");
+//	add_root_dir_entry(145000, "test6");
+//	add_root_dir_entry(2300, "test8");
+//	super_blk.nb_files=57;
+//	write_super_blk();
+
+	printf("adding directories\n");
+//	for (int i = 0; i < 50; i++)
+//		sfs_fopen("test");
+	sfs_fopen("test2");
+	sfs_fopen("test3");
+	sfs_fopen("test4");
+	sfs_fopen("test5");
+	sfs_fopen("test6666612345.exe");
+	sfs_fopen("test6");
+	sfs_fopen("test8");
+
+	read_super_blk();
+	print_super_blk();
+
+	print_root_dir();
+
+	remove_root_dir_entry("test2");
+
+	print_root_dir();
+
+	write_root_dir(root_dir_inode, ROOT_DIR_ADDR);
+	root_dir_inode = read_i_node(1);
+	print_i_node(root_dir_inode);
 
 //	//Test 1.2
 //	mksfs(0);
