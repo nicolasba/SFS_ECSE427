@@ -1,9 +1,3 @@
-/*
- * on_disk_data_struct.c
- *
- *  Created on: Nov 29, 2019
- *      Author: nicolas
- */
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>

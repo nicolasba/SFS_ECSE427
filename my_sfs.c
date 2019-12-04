@@ -1,9 +1,3 @@
-/*
- * my_sfs.c
- *
- *  Created on: Nov 28, 2019
- *      Author: nicolas
- */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,7 +8,7 @@
 
 #define	SFS_FILENAME_TEST "my_sfs_20.txt"
 #define BLK_SIZE 1024
-#define NB_BLKS 20
+#define NB_BLKS 10000
 #define ROOT_DIR_ADDR 1
 
 int root_dir_addr;
@@ -38,7 +32,7 @@ void mksfs(int fresh) {
 		print_root_dir();
 	}
 
-	init_mem_table(fresh);
+	init_mem_table(fresh);		//Initialize free blocks table
 	init_fd_table();			//Initialize fd table
 }
 

@@ -1,9 +1,3 @@
-/*
- * my_sfs.h
- *
- *  Created on: Nov 28, 2019
- *      Author: nicolas
- */
 
 #ifndef SFS_API_H_
 #define SFS_API_H_

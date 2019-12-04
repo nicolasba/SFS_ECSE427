@@ -1,18 +1,14 @@
-/*
- * in_mem_data_struct.c
- *
- *  Created on: Dec 3, 2019
- *      Author: nicolas
- */
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include "on_disk_data_struct.h"
 #include "in_mem_data_struct.h"
 #include "disk_emu.h"
 
 mem_table_t *last_available;
 int nb_open_files;
+int nb_blks_store_free_table;
 
 int init_fd_table() {
 
@@ -173,51 +169,59 @@ void print_fd_table() {
 	}
 }
 
+//Initializes free blocks table
 int init_mem_table(int fresh) {
 
+	nb_blks_store_free_table = super_blk.sfs_size  / super_blk.blk_size + 1;
+
 	if (fresh) {
-		root_mem_table.blk_index = 2;
-		root_mem_table.next = NULL;
+		free_blks[0] = -1;	//Super block
+		free_blks[1] = -1;	//Root dir inode
 
-		last_available = &root_mem_table;
-	} else {
+		for (int i = 2; i < super_blk.sfs_size; i++)
+			free_blks[i] = 1;
 
-	}
+		//If sfs_size= 10k, last 10 blocks will store the free blocks table
+		for (int i = 0; i < nb_blks_store_free_table; i++)
+			free_blks[super_blk.sfs_size - i - 1] = -1;
+
+		write_mem_table();
+	} else
+		read_blocks(super_blk.sfs_size - nb_blks_store_free_table, nb_blks_store_free_table, free_blks);
+
+	return 0;
 }
 
 //Uses a linked list to find available blocks
 int allocate_blocks(int nb_blocks) {
 
-	int blk_index;
+	int ret = -1;
 
-	//Most recently deallocated are at the last_available position
-	if (last_available->next != NULL) {
-		blk_index = last_available->blk_index;
-		last_available = last_available->next;
+	for (int i = 0; i < super_blk.sfs_size; i++) {
+		if (free_blks[i] == 1) {
+			free_blks[i] = -1;
+			ret = i;
+			write_mem_table();
+			break;
+		}
 	}
-	//If there is only one element in the list, all block indices after the index in the element
-	//are available
-	else {
-		blk_index = last_available->blk_index;
-		last_available->blk_index++;
-	}
-
-	if (blk_index > super_blk.sfs_size) {
-		printf("There are no blocks available.");
-		return -1;
-	}
-
-	return blk_index;
+	return ret;
 }
 
 //Deallocates block at input index
 int deallocate_block(int blk) {
 
-	mem_table_t *mem_table_node = (mem_table_t*) malloc(sizeof(mem_table_t));
+	char *buf = (char*) calloc(1, super_blk.blk_size);
+	write_blocks(blk, 1, buf);
 
-	mem_table_node->blk_index = blk;
-	mem_table_node->next = last_available;
-	last_available = mem_table_node;
+	free_blks[blk] = 1;
+	write_mem_table();
+	return 0;
+}
 
+//Writes free blocks table to disk
+int write_mem_table() {
+
+	write_blocks(super_blk.sfs_size - nb_blks_store_free_table, nb_blks_store_free_table, free_blks);
 	return 0;
 }

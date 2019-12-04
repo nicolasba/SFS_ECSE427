@@ -1,8 +1,3 @@
-/*
- * on_disk_data_struct.h
- *      Author: nicolas
- */
-
 #ifndef ON_DISK_DATA_STRUCT_H_
 #define ON_DISK_DATA_STRUCT_H_
 

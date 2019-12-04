@@ -1,16 +1,10 @@
-/*
- * in_mem_data_struct.h
- *
- *  Created on: Nov 28, 2019
- *      Author: nicolas
- */
-
 #ifndef IN_MEM_DATA_STRUCT_H_
 #define IN_MEM_DATA_STRUCT_H_
 
 typedef struct fd_table_entry fd_table_entry;
 typedef struct fd_table_t fd_table_t;
 typedef struct mem_table_t mem_table_t;
+#define NB_BLKS 10000
 
 struct fd_table_entry {
 	int fd;
@@ -32,13 +26,11 @@ int get_fd(int i_node);
 int is_open(int i_node);
 void print_fd_table();
 
-struct mem_table_t {
-	int blk_index;
-	mem_table_t *next;
-}root_mem_table;
+int free_blks[NB_BLKS];
 
 int init_mem_table();
 int allocate_blocks(int nb_blocks);
 int deallocate_block(int blk);
+int write_mem_table();
 
 #endif /* IN_MEM_DATA_STRUCT_H_ */
