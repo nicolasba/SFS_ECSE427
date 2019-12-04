@@ -16,39 +16,146 @@
 #define NB_BLKS 20
 #define ROOT_DIR_ADDR 1
 
+int root_dir_addr;
+
 void mksfs(int fresh) {
 
 	if (fresh) {
-		init_fresh_disk(SFS_FILENAME_TEST, BLK_SIZE, NB_BLKS);
-		init_super_blk(BLK_SIZE, NB_BLKS, ROOT_DIR_ADDR, 0);
-		write_super_blk();
+		init_fresh_disk(SFS_FILENAME_TEST, BLK_SIZE, NB_BLKS); //Initialize fresh disk
+		init_super_blk(BLK_SIZE, NB_BLKS, ROOT_DIR_ADDR, 0); //Initialize super block content
+		init_root_dir(fresh);						//Initialize root dir cache
 	} else {
-		init_disk(SFS_FILENAME_TEST, BLK_SIZE, NB_BLKS);
+		init_disk(SFS_FILENAME_TEST, BLK_SIZE, NB_BLKS);	//Initialize disk
+		read_super_blk();					//Read existing super block content
+		print_super_blk();
+
+		inode *root_dir_inode = read_i_node(super_blk.root_dir_i_node);
+		print_i_node(root_dir_inode);
+
+		init_root_dir(fresh);						//Initialize root dir cache
+		read_root_dir(root_dir_inode);//Read existing root dir content to cache
+		print_root_dir();
 	}
+
+	init_fd_table();			//Initialize fd table
 }
 
 int sfs_fopen(char *name) {
 
-	//SEARCH FOR EXISTING FILENAME
-	//ONLY increase nb_files if file does not exist already
-	add_root_dir_entry(100, name);
-	super_blk.nb_files++;
-	write_super_blk();
+	int inode_index = get_i_node_index(name);
+	int fd;
+	inode* root_dir_inode = read_i_node(super_blk.root_dir_i_node);
 
+	//File does not exist -> create file
+	if (inode_index == -1) {
+
+		printf("Creating file with name : %s\n", name);
+
+		//Allocate free block for inode
+		inode_index = 4; 		//TODO CHAAAAAAANGE
+
+		printf("Allocating new file.\n");
+		inode *new_file_inode = init_i_node(inode_index);  	//Create inode
+		print_i_node(new_file_inode);
+
+		add_new_file_root_dir_entry(inode_index, name); //Add entry to root directory table
+		//	int fd2 = sfs_fopen("test3");
+		//	int fd3 = sfs_fopen("test4");
+		write_root_dir(root_dir_inode, super_blk.root_dir_i_node);
+		print_root_dir();
+
+		//Add entry to fd table
+		fd = add_fd_entry(inode_index);
+		print_fd_table();
+	} else { 	//Open existing file
+
+		printf("File with name \"%s\" exists.\n", name);
+
+		if (is_open(inode_index)) {
+			printf("File is already open.\n");
+			return -1;
+		}
+
+		//Add entry to fd table
+		fd = add_fd_entry(inode_index);
+		print_fd_table();
+	}
+
+	return fd;
+}
+
+int sfs_fclose(int fileID) {
+
+	return remove_fd_entry(fileID);
+}
+
+int sfs_frseek(int fileID, int loc) {
+
+	fd_table_entry *entry = get_fd_entry(fileID);
+
+	if (entry == NULL)
+		return -1;
+
+	entry->r_offset = loc;
+	return 0;
+}
+
+int sfs_fwseek(int fileID, int loc) {
+
+	fd_table_entry *entry = get_fd_entry(fileID);
+
+	if (entry == NULL)
+		return -1;
+
+	entry->r_offset = loc;
+	return 0;
+}
+
+int sfs_fread(int fileID, char *buf, int length) {
+
+}
+
+int sfs_fwrite(int fileID, char *buf, int length) {
+
+}
+
+int sfs_remove(char *file) {
+
+	int i_node = get_i_node_index(file);
+
+	if (i_node == -1) {
+		printf("File does not exist.\n");
+		return -1;
+	}
+
+	int fd = get_fd(i_node);
+	inode *root_dir_inode = read_i_node(super_blk.root_dir_i_node);
+	inode *file_i_node = read_i_node(i_node);
+	int i = 0;
+
+	while (file_i_node->data_blk[i] != -1) {
+		deallocate_block(file_i_node->data_blk[i]);		//Deallocate data blocks
+	}
+
+	deallocate_block(i_node);				//Deallocate i node block
+
+	if (remove_root_dir_entry(file) == -1)			//Remove from root directory
+		return -1;
+
+	write_root_dir(root_dir_inode, super_blk.root_dir_i_node);
+
+	if (is_open(i_node))		//Remove entry from fd table
+		remove_fd_entry(fd);
+
+	free(file_i_node);
+	return 0;
 }
 
 int main(void) {
 
 	//Test1.1
 	//Init root dir
-	mksfs(1);
-
-	read_super_blk();
-	print_super_blk();
-
-	init_root_dir(1);
-	inode *root_dir_inode = read_i_node(1);
-	print_i_node(root_dir_inode);
+	mksfs(0);
 //
 //	printf("adding directories\n");
 //	for (int i = 0; i < 50; i++)
@@ -60,49 +167,39 @@ int main(void) {
 //	add_root_dir_entry(900, "test6666612345.exe");
 //	add_root_dir_entry(145000, "test6");
 //	add_root_dir_entry(2300, "test8");
-//	super_blk.nb_files=57;
+//	super_blk.nb_files+=7;
 //	write_super_blk();
-
-	printf("adding directories\n");
-//	for (int i = 0; i < 50; i++)
-//		sfs_fopen("test");
-	sfs_fopen("test2");
-	sfs_fopen("test3");
-	sfs_fopen("test4");
-	sfs_fopen("test5");
-	sfs_fopen("test6666612345.exe");
-	sfs_fopen("test6");
-	sfs_fopen("test8");
-
-	read_super_blk();
-	print_super_blk();
-
+//	char buf[7];
+////	printf("adding directories\n");
+//	for (int i = 0; i < 50; i++) {
+//		snprintf(buf, 7, "test%d", i);
+//		sfs_fopen(buf);
+//	}
+	int fd1 = sfs_fopen("test102");
+//	int fd2 = sfs_fopen("test3");
+//	sfs_remove("test101");
 	print_root_dir();
+	print_i_node(read_i_node(super_blk.root_dir_i_node));
+	print_fd_table();
+//	int fd3 = sfs_fopen("test4");
+//	sfs_fopen("test5");
+//	sfs_fopen("test6666612345.exe");
+//	sfs_fopen("test6");
+//	sfs_fopen("test8");
 
-	remove_root_dir_entry("test2");
-	super_blk.nb_files--;
-	write_super_blk();
-
-	print_root_dir();
-
-	get_i_node_index("test6");
-
-	write_root_dir(root_dir_inode, ROOT_DIR_ADDR);
-	root_dir_inode = read_i_node(1);
-	print_i_node(root_dir_inode);
-
-//	//Test 1.2
-//	mksfs(0);
-//
 //	read_super_blk();
 //	print_super_blk();
-//
-//	inode *root_dir_inode = read_i_node(1);
-//	print_i_node(root_dir_inode);
-//
-//	init_root_dir(0);
-//	read_root_dir(root_dir_inode);
 //	print_root_dir();
+//	remove_root_dir_entry("test2");
+
+//	super_blk.nb_files--;
+//	write_super_blk();
+
+//	print_root_dir();
+
+//	write_root_dir(root_dir_inode, ROOT_DIR_ADDR);
+//	root_dir_inode = read_i_node(1);
+//	print_i_node(root_dir_inode);
 
 //	root_dir_i_node->mode = 21423;
 //	root_dir_i_node->data_blk[5] = 4545;
@@ -113,6 +210,8 @@ int main(void) {
 //	super_blk.sfs_size = 23142;
 //	super_blk.root_dir_i_node = 28548;
 //	super_blk.nb_files = 21319;
+	//	int fd2 = sfs_fopen("test3");
+	//	int fd3 = sfs_fopen("test4");
 
 	return EXIT_SUCCESS;
 }

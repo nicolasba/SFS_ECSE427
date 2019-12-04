@@ -37,6 +37,7 @@ int init_super_blk(int blk_size, int sfs_size, int root_dir_i_node,
 	super_blk.root_dir_i_node = root_dir_i_node;
 	super_blk.nb_files = nb_files;
 
+	write_super_blk();
 	return 0;
 }
 
@@ -339,6 +340,18 @@ int add_root_dir_entry(int i_node, char *filename) {
 	return 0;
 }
 
+//Call this function to add entries to the root dir entry when a new file is created (as opposed
+//to when initializing existing file system -> adding entries to cache root dir from existing files)
+int add_new_file_root_dir_entry(int i_node, char *filename) {
+
+	if (add_root_dir_entry(i_node, filename) == -1)
+		return -1;
+	super_blk.nb_files++;
+	write_super_blk();
+
+	return 0;
+}
+
 int remove_root_dir_entry(char *filename) {
 
 	root_dir_t *prev_entry;
@@ -361,8 +374,10 @@ int remove_root_dir_entry(char *filename) {
 			//Entry to be removed is the first in the directory
 			if (current_entry == &root_dir) {
 				//Entry to be removed is the only entry in the directory
-				if (current_entry->next == NULL)
+				if (current_entry->next == NULL) {
 					init_root_dir(0);
+					return 0;
+				}
 				else
 					root_dir = *(current_entry->next);
 
@@ -379,6 +394,8 @@ int remove_root_dir_entry(char *filename) {
 			current_entry = &root_dir;
 			printf("Entry was removed.\n");
 			nb_files_root_dir_cache--;
+			super_blk.nb_files--;
+			write_super_blk();
 
 			return 0;
 		}
@@ -415,7 +432,7 @@ int get_i_node_index(char *filename) {
 	}
 
 	current_entry = &root_dir;
-	printf("Entry could not be found for \"%s\"", filename);
+	printf("Entry could not be found for \"%s\"\n", filename);
 	return -1;
 }
 
