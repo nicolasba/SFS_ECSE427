@@ -10,6 +10,7 @@
 
 typedef struct fd_table_entry fd_table_entry;
 typedef struct fd_table_t fd_table_t;
+typedef struct mem_table_t mem_table_t;
 
 struct fd_table_entry {
 	int fd;
@@ -30,6 +31,11 @@ fd_table_entry* get_fd_entry(int fd);
 int get_fd(int i_node);
 int is_open(int i_node);
 void print_fd_table();
+
+struct mem_table_t {
+	int blk_index;
+	mem_table_t *next;
+};
 
 int allocate_blocks(int nb_blocks);
 int deallocate_block(int blk);

@@ -150,7 +150,7 @@ int init_root_dir(int fresh) {
 	inode *root_dir_i_node;
 
 	if (fresh)
-		root_dir_i_node = init_i_node(1); //Create root dir i-node (MUST CACHE) TODO replace 1 with allocate
+		root_dir_i_node = init_i_node(1); //Create root dir i-node
 
 	root_dir.dir_entry.i_node_index = -1;
 	root_dir.next = NULL;
@@ -284,13 +284,13 @@ int write_root_dir(inode *root_dir_inode, int inode_index) {
 		return -1;
 	}
 
-	int allocated = 2; //TODO REMOOOOOOOVE
+	int allocated;
 
 	//Iterate through the single pointers to data blocks
 	for (int i = 0; i < nb_blocks_buffer; i++) {
 		if (root_dir_inode->data_blk[i] == -1) {
-			//Allocate new data block (TODO)
-			allocated = (i == 0) ? 2 : 3;
+			//Allocate new data block
+			allocated = allocate_blocks(1);
 			root_dir_inode->data_blk[i] = allocated;
 		}
 

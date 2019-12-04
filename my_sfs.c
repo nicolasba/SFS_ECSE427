@@ -6,6 +6,7 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "in_mem_data_struct.h"
 #include "on_disk_data_struct.h"
 #include "disk_emu.h"
@@ -40,6 +41,19 @@ void mksfs(int fresh) {
 	init_fd_table();			//Initialize fd table
 }
 
+//Returns size of a given file
+int sfs_getfilesize(const char *path) {
+
+	int inode_index = get_i_node_index(path);
+	inode *file_inode = read_i_node(inode_index);
+
+	if (inode_index == -1)
+		return -1;
+
+	return file_inode->size;
+}
+
+//Opens a file (or creates it if it does not exist)
 int sfs_fopen(char *name) {
 
 	int inode_index = get_i_node_index(name);
@@ -52,7 +66,7 @@ int sfs_fopen(char *name) {
 		printf("Creating file with name : %s\n", name);
 
 		//Allocate free block for inode
-		inode_index = 4; 		//TODO CHAAAAAAANGE
+		inode_index = allocate_blocks(1);
 
 		printf("Allocating new file.\n");
 		inode *new_file_inode = init_i_node(inode_index);  	//Create inode
@@ -84,11 +98,13 @@ int sfs_fopen(char *name) {
 	return fd;
 }
 
+//Closes a file
 int sfs_fclose(int fileID) {
 
 	return remove_fd_entry(fileID);
 }
 
+//Moves the read pointer of a file to loc
 int sfs_frseek(int fileID, int loc) {
 
 	fd_table_entry *entry = get_fd_entry(fileID);
@@ -100,6 +116,7 @@ int sfs_frseek(int fileID, int loc) {
 	return 0;
 }
 
+//Moves the write pointer of a file to loc
 int sfs_fwseek(int fileID, int loc) {
 
 	fd_table_entry *entry = get_fd_entry(fileID);
@@ -107,10 +124,11 @@ int sfs_fwseek(int fileID, int loc) {
 	if (entry == NULL)
 		return -1;
 
-	entry->r_offset = loc;
+	entry->w_offset = loc;
 	return 0;
 }
 
+//Reads "length" bytes from a file starting from read pointer into buf
 int sfs_fread(int fileID, char *buf, int length) {
 
 	fd_table_entry *entry = get_fd_entry(fileID);
@@ -129,8 +147,10 @@ int sfs_fread(int fileID, char *buf, int length) {
 	file_inode = read_i_node(i_node);
 	r_offset = entry->r_offset;
 
-	if (r_offset + length > file_inode->size)
+	if (r_offset + length > file_inode->size) {
 		printf("You're trying to read more than there is data.\n");
+		return -1;
+	}
 
 	first_block_index = r_offset / super_blk.blk_size;
 	last_block_index = (r_offset + length) / super_blk.blk_size;
@@ -152,10 +172,15 @@ int sfs_fread(int fileID, char *buf, int length) {
 	temp_offset = r_offset % super_blk.blk_size;
 	memcpy(buf, concat_buf + temp_offset, length);
 
+	printf("temp offset : %d", temp_offset);
+	entry->r_offset = r_offset + length;
+
 	free(concat_buf);
 	free(temp_buf);
+	return length;
 }
 
+//Writes "length" bytes from buf into file starting at write pointer
 int sfs_fwrite(int fileID, char *buf, int length) {
 
 	fd_table_entry *entry = get_fd_entry(fileID);
@@ -176,24 +201,28 @@ int sfs_fwrite(int fileID, char *buf, int length) {
 	first_block_index = w_offset / super_blk.blk_size;
 	last_block_index = (w_offset + length) / super_blk.blk_size;
 
-	if (file_inode->data_blk[first_block_index] == -1) {
-		printf("You are trying to write outside of the file allocated space.");
+	if (file_inode->data_blk[first_block_index] == -1
+			&& first_block_index > 0) {
+		printf(
+				"You are trying to write outside of the file allocated space.\n");
 		return -1;
 	}
 
-	temp_buf = (char*) malloc (super_blk.blk_size);
+	temp_buf = (char*) malloc(super_blk.blk_size);
 	buf_offset = 0;
 
 	for (int i = first_block_index; i <= last_block_index; i++) {
 		if (file_inode->data_blk[i] == -1)
 			file_inode->data_blk[i] = allocate_blocks(1);
+//			file_inode->data_blk[i] = 10;
 
 		//For first block to be written
 		if (i == first_block_index) {
 			read_blocks(file_inode->data_blk[i], 1, temp_buf);
 
 			temp_offset = w_offset - (first_block_index * super_blk.blk_size);
-			memcpy(temp_buf + temp_offset, buf + buf_offset, super_blk.blk_size - temp_offset);
+			memcpy(temp_buf + temp_offset, buf + buf_offset,
+					super_blk.blk_size - temp_offset);
 			buf += super_blk.blk_size - temp_offset;
 
 			write_blocks(file_inode->data_blk[i], 1, temp_buf);
@@ -202,7 +231,8 @@ int sfs_fwrite(int fileID, char *buf, int length) {
 		else if (i == last_block_index) {
 			read_blocks(file_inode->data_blk[i], 1, temp_buf);
 
-			temp_offset = (w_offset + length) - (last_block_index * super_blk.blk_size);
+			temp_offset = (w_offset + length)
+					- (last_block_index * super_blk.blk_size);
 			memcpy(temp_buf, buf + buf_offset, temp_offset);
 
 			write_blocks(file_inode->data_blk[i], 1, temp_buf);
@@ -217,11 +247,13 @@ int sfs_fwrite(int fileID, char *buf, int length) {
 	if (w_offset + length > file_inode->size)
 		file_inode->size = w_offset + length;
 
+	entry->w_offset = w_offset + length;
 
 	write_i_node(file_inode, i_node);
 	return length;
 }
 
+//Removes a file from the sfs
 int sfs_remove(char *file) {
 
 	int i_node = get_i_node_index(file);
@@ -258,22 +290,8 @@ int main(void) {
 
 	//Test1.1
 	//Init root dir
-	mksfs(0);
-//
-//	printf("adding directories\n");
-//	for (int i = 0; i < 50; i++)
-//		add_root_dir_entry(i, "test");
-//	add_root_dir_entry(100, "test2");
-//	add_root_dir_entry(25, "test3");
-//	add_root_dir_entry(400, "test4");
-//	add_root_dir_entry(800, "test5");
-//	add_root_dir_entry(900, "test6666612345.exe");
-//	add_root_dir_entry(145000, "test6");
-//	add_root_dir_entry(2300, "test8");
-//	super_blk.nb_files+=7;
-//	write_super_blk();
-//	char buf[7];
-////	printf("adding directories\n");
+	mksfs(1);
+
 //	for (int i = 0; i < 50; i++) {
 //		snprintf(buf, 7, "test%d", i);
 //		sfs_fopen(buf);
@@ -284,37 +302,26 @@ int main(void) {
 	print_root_dir();
 	print_i_node(read_i_node(super_blk.root_dir_i_node));
 	print_fd_table();
+
+	char buf1[] =
+			"In computer science, a pointer is a programming language object that stores the memory address of another value located in computer memory. A pointer references a location in memory, and obtaining the value stored at that location is known as dereferencing the pointer. As an analogy, a page number in a book's index could be considered a pointer to the corresponding page; dereferencing such a pointer would be done by flipping to the page with the given page number and reading the text found on that page. The actual format and content of a pointer variable is dependent on the underlying computer "
+			"architecture. Using pointers significantly improves performance for repetitive operations like traversing iterable data structures, e.g. strings, lookup tables, control tables and tree structures. In particular, it is often much cheaper in time and space to copy and dereference pointers than it is to copy and access the data to which the pointers point. Pointers are also used to hold the addresses of entry points for called subroutines in procedural programming and for run-time linking to dynamic link libraries (DLLs). In object-oriented programming, pointers to functions are used for binding methods, often using what are called"
+			" virtual method tables.";
+	char buf2[1260];
+
+	printf("length: %d", strlen(buf1));
+
+//	sfs_frseek(fd1, 2);
+	sfs_fwrite(fd1, buf1, 1260);
+	sfs_fread(fd1, buf2, 1260);
+//
+	printf("buf1: %s\n\n\n\n", buf1);
+	printf("buf2: %s\n", buf2);
 //	int fd3 = sfs_fopen("test4");
 //	sfs_fopen("test5");
 //	sfs_fopen("test6666612345.exe");
 //	sfs_fopen("test6");
 //	sfs_fopen("test8");
-
-//	read_super_blk();
-//	print_super_blk();
-//	print_root_dir();
-//	remove_root_dir_entry("test2");
-
-//	super_blk.nb_files--;
-//	write_super_blk();
-
-//	print_root_dir();
-
-//	write_root_dir(root_dir_inode, ROOT_DIR_ADDR);
-//	root_dir_inode = read_i_node(1);
-//	print_i_node(root_dir_inode);
-
-//	root_dir_i_node->mode = 21423;
-//	root_dir_i_node->data_blk[5] = 4545;
-//	write_i_node(root_dir_i_node, 1);
-//
-//	super_blk.magic = 3021;
-//	super_blk.blk_size = 75741;
-//	super_blk.sfs_size = 23142;
-//	super_blk.root_dir_i_node = 28548;
-//	super_blk.nb_files = 21319;
-	//	int fd2 = sfs_fopen("test3");
-	//	int fd3 = sfs_fopen("test4");
 
 	return EXIT_SUCCESS;
 }
