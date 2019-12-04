@@ -44,7 +44,7 @@ int sfs_fopen(char *name) {
 
 	int inode_index = get_i_node_index(name);
 	int fd;
-	inode* root_dir_inode = read_i_node(super_blk.root_dir_i_node);
+	inode *root_dir_inode = read_i_node(super_blk.root_dir_i_node);
 
 	//File does not exist -> create file
 	if (inode_index == -1) {
@@ -113,10 +113,113 @@ int sfs_fwseek(int fileID, int loc) {
 
 int sfs_fread(int fileID, char *buf, int length) {
 
+	fd_table_entry *entry = get_fd_entry(fileID);
+	int i_node;
+	inode *file_inode;			//File inode
+	int r_offset;				//Read pointer
+
+	int first_block_index;		//First data block to read index
+	int last_block_index;		//Last data block to read index
+	int nb_blocks;				//Number of blocks to read
+	char *temp_buf;
+	char *concat_buf;
+	int temp_offset;
+
+	i_node = entry->i_node;
+	file_inode = read_i_node(i_node);
+	r_offset = entry->r_offset;
+
+	if (r_offset + length > file_inode->size)
+		printf("You're trying to read more than there is data.\n");
+
+	first_block_index = r_offset / super_blk.blk_size;
+	last_block_index = (r_offset + length) / super_blk.blk_size;
+	nb_blocks = last_block_index - first_block_index + 1;
+
+	concat_buf = (char*) malloc(nb_blocks * super_blk.blk_size);
+	temp_buf = (char*) malloc(BLOCK_SIZE);
+	temp_offset = 0;
+
+	//Read block by block and concatenate data
+	for (int i = first_block_index; i <= last_block_index; i++) {
+		if (file_inode->data_blk[i] != -1) {
+			read_blocks(file_inode->data_blk[i], 1, temp_buf);
+			memcpy(concat_buf + temp_offset, temp_buf, super_blk.blk_size);
+			temp_offset += super_blk.blk_size;
+		}
+	}
+
+	temp_offset = r_offset % super_blk.blk_size;
+	memcpy(buf, concat_buf + temp_offset, length);
+
+	free(concat_buf);
+	free(temp_buf);
 }
 
 int sfs_fwrite(int fileID, char *buf, int length) {
 
+	fd_table_entry *entry = get_fd_entry(fileID);
+	int i_node;
+	inode *file_inode;			//File inode
+	int w_offset;				//Read pointer
+
+	int first_block_index;		//First data block to read index
+	int last_block_index;		//Last data block to read index
+	char *temp_buf;
+	int temp_offset;
+	int buf_offset;
+
+	i_node = entry->i_node;
+	file_inode = read_i_node(i_node);
+	w_offset = entry->w_offset;
+
+	first_block_index = w_offset / super_blk.blk_size;
+	last_block_index = (w_offset + length) / super_blk.blk_size;
+
+	if (file_inode->data_blk[first_block_index] == -1) {
+		printf("You are trying to write outside of the file allocated space.");
+		return -1;
+	}
+
+	temp_buf = (char*) malloc (super_blk.blk_size);
+	buf_offset = 0;
+
+	for (int i = first_block_index; i <= last_block_index; i++) {
+		if (file_inode->data_blk[i] == -1)
+			file_inode->data_blk[i] = allocate_blocks(1);
+
+		//For first block to be written
+		if (i == first_block_index) {
+			read_blocks(file_inode->data_blk[i], 1, temp_buf);
+
+			temp_offset = w_offset - (first_block_index * super_blk.blk_size);
+			memcpy(temp_buf + temp_offset, buf + buf_offset, super_blk.blk_size - temp_offset);
+			buf += super_blk.blk_size - temp_offset;
+
+			write_blocks(file_inode->data_blk[i], 1, temp_buf);
+		}
+		//For last block to be written
+		else if (i == last_block_index) {
+			read_blocks(file_inode->data_blk[i], 1, temp_buf);
+
+			temp_offset = (w_offset + length) - (last_block_index * super_blk.blk_size);
+			memcpy(temp_buf, buf + buf_offset, temp_offset);
+
+			write_blocks(file_inode->data_blk[i], 1, temp_buf);
+		}
+		//For blocks in the middle
+		else {
+			write_blocks(file_inode->data_blk[i], 1, buf + buf_offset);
+		}
+	}
+
+	//Update size of file in case it was expanded, otherwise it stays the same
+	if (w_offset + length > file_inode->size)
+		file_inode->size = w_offset + length;
+
+
+	write_i_node(file_inode, i_node);
+	return length;
 }
 
 int sfs_remove(char *file) {
@@ -137,7 +240,7 @@ int sfs_remove(char *file) {
 		deallocate_block(file_i_node->data_blk[i]);		//Deallocate data blocks
 	}
 
-	deallocate_block(i_node);				//Deallocate i node block
+	deallocate_block(i_node);						//Deallocate i node block
 
 	if (remove_root_dir_entry(file) == -1)			//Remove from root directory
 		return -1;
