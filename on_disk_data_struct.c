@@ -350,21 +350,6 @@ int remove_root_dir_entry(char *filename) {
 	current_entry = &root_dir;
 	prev_entry = &root_dir;
 
-//	if (strcmp(current_entry->dir_entry.filename, filename) == 0) {
-//		//The entry to be removed is the only one in the directory
-//		if (current_entry->next == NULL)
-//			init_root_dir(0);
-//
-//		//Remove first and assign root_dir to second entry
-//		else
-//			root_dir = *(current_entry->next);
-//
-//		printf("Entry was removed.\n");
-//		return 0;
-//	}
-//
-//	current_entry = current_entry->next;
-
 	while (current_entry != NULL) {
 
 		//Found entry to remove
@@ -407,11 +392,42 @@ int remove_root_dir_entry(char *filename) {
 	return -1;
 }
 
+int get_i_node_index(char *filename) {
+
+	if (nb_files_root_dir_cache == 0) {
+		printf("Directory cache is empty.\n");
+		return -1;
+	}
+
+	current_entry = &root_dir;
+
+	while (current_entry != NULL) {
+
+		if (strcmp(current_entry->dir_entry.filename, filename) == 0) {
+
+			printf("Found entry: inode: %d\n",
+					current_entry->dir_entry.i_node_index);
+			current_entry = &root_dir;
+			return current_entry->dir_entry.i_node_index;
+		}
+
+		current_entry = current_entry->next;
+	}
+
+	current_entry = &root_dir;
+	printf("Entry could not be found for \"%s\"", filename);
+	return -1;
+}
+
+int get_number_of_files() {
+	return super_blk.nb_files;
+}
+
 void print_root_dir() {
 
 	root_dir_entry *root_dir_buffer = (root_dir_entry*) malloc(BLOCK_SIZE);
 
-//0 blocks from root_dir_buffer
+	//0 blocks from root_dir_buffer
 	if (get_rootdir_buffer(&root_dir_buffer) == 0) {
 		printf("Root_dir is empty.\n");
 		free(root_dir_buffer);

@@ -80,8 +80,12 @@ int main(void) {
 	print_root_dir();
 
 	remove_root_dir_entry("test2");
+	super_blk.nb_files--;
+	write_super_blk();
 
 	print_root_dir();
+
+	get_i_node_index("test6");
 
 	write_root_dir(root_dir_inode, ROOT_DIR_ADDR);
 	root_dir_inode = read_i_node(1);
