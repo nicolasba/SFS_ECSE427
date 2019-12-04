@@ -22,14 +22,14 @@ void mksfs(int fresh) {
 	} else {
 		init_disk(SFS_FILENAME_TEST, BLK_SIZE, NB_BLKS);	//Initialize disk
 		read_super_blk();					//Read existing super block content
-		print_super_blk();
+//		print_super_blk();
 
 		inode *root_dir_inode = read_i_node(super_blk.root_dir_i_node);
-		print_i_node(root_dir_inode);
+//		print_i_node(root_dir_inode);
 
 		init_root_dir(fresh);						//Initialize root dir cache
 		read_root_dir(root_dir_inode);//Read existing root dir content to cache
-		print_root_dir();
+//		print_root_dir();
 	}
 
 	init_mem_table(fresh);		//Initialize free blocks table
@@ -63,22 +63,18 @@ int sfs_fopen(char *name) {
 		//Allocate free block for inode
 		inode_index = allocate_blocks(1);
 
-		printf("Allocating new file.\n");
+		printf("Allocating new inode.\n");
 		inode *new_file_inode = init_i_node(inode_index);  	//Create inode
-		print_i_node(new_file_inode);
 
 		add_new_file_root_dir_entry(inode_index, name); //Add entry to root directory table
-		//	int fd2 = sfs_fopen("test3");
-		//	int fd3 = sfs_fopen("test4");
 		write_root_dir(root_dir_inode, super_blk.root_dir_i_node);
-		print_root_dir();
 
 		//Add entry to fd table
 		fd = add_fd_entry(inode_index);
-		print_fd_table();
+
 	} else { 	//Open existing file
 
-		printf("File with name \"%s\" exists.\n", name);
+		printf("Opening \"%s\" .\n", name);
 
 		if (is_open(inode_index)) {
 			printf("File is already open.\n");
@@ -87,7 +83,7 @@ int sfs_fopen(char *name) {
 
 		//Add entry to fd table
 		fd = add_fd_entry(inode_index);
-		print_fd_table();
+//		print_fd_table();
 	}
 
 	return fd;
@@ -96,6 +92,8 @@ int sfs_fopen(char *name) {
 //Closes a file
 int sfs_fclose(int fileID) {
 
+	printf("Closing file");
+
 	return remove_fd_entry(fileID);
 }
 
@@ -103,6 +101,7 @@ int sfs_fclose(int fileID) {
 int sfs_frseek(int fileID, int loc) {
 
 	fd_table_entry *entry = get_fd_entry(fileID);
+	printf("Moving r_pointer");
 
 	if (entry == NULL)
 		return -1;
@@ -115,6 +114,7 @@ int sfs_frseek(int fileID, int loc) {
 int sfs_fwseek(int fileID, int loc) {
 
 	fd_table_entry *entry = get_fd_entry(fileID);
+	printf("Moving w_pointer");
 
 	if (entry == NULL)
 		return -1;
@@ -169,6 +169,8 @@ int sfs_fread(int fileID, char *buf, int length) {
 	memcpy(buf, concat_buf + temp_offset, length);
 
 	entry->r_offset = r_offset + length;
+
+	printf("Read %d bytes", length);
 
 	free(concat_buf);
 	free(temp_buf);
@@ -244,6 +246,7 @@ int sfs_fwrite(int fileID, char *buf, int length) {
 
 	entry->w_offset = w_offset + length;
 
+	printf("Wrote %d bytes.\n", length);
 	write_i_node(file_inode, i_node);
 	return length;
 }
@@ -277,47 +280,47 @@ int sfs_remove(char *file) {
 	if (is_open(i_node))		//Remove entry from fd table
 		remove_fd_entry(fd);
 
+	printf("Removed file \"%s\".\n", file);
+
 	free(file_i_node);
 	return 0;
 }
-
-int main(void) {
-
-	//Test1.1
-	//Init root dir
-	mksfs(0);
-
-//	for (int i = 0; i < 50; i++) {
-//		snprintf(buf, 7, "test%d", i);
-//		sfs_fopen(buf);
-//	}
-	int fd1 = sfs_fopen("test102");
-//	int fd2 = sfs_fopen("test3");
-//	sfs_remove("test101");
-	print_root_dir();
-	print_i_node(read_i_node(super_blk.root_dir_i_node));
-	print_fd_table();
-
-	char buf1[] =
-			"In computer science, a pointer is a programming language object that stores the memory address of another value located in computer memory. A pointer references a location in memory, and obtaining the value stored at that location is known as dereferencing the pointer. As an analogy, a page number in a book's index could be considered a pointer to the corresponding page; dereferencing such a pointer would be done by flipping to the page with the given page number and reading the text found on that page. The actual format and content of a pointer variable is dependent on the underlying computer "
-			"architecture. Using pointers significantly improves performance for repetitive operations like traversing iterable data structures, e.g. strings, lookup tables, control tables and tree structures. In particular, it is often much cheaper in time and space to copy and dereference pointers than it is to copy and access the data to which the pointers point. Pointers are also used to hold the addresses of entry points for called subroutines in procedural programming and for run-time linking to dynamic link libraries (DLLs). In object-oriented programming, pointers to functions are used for binding methods, often using what are called"
-			" virtual method tables.";
-	char buf2[1260];
-
-	printf("length: %d\n", strlen(buf1));
-
-//	sfs_frseek(fd1, 2);
-//	sfs_fwrite(fd1, buf1, 1260);
-	sfs_fread(fd1, buf2, 1260);
 //
-//	printf("buf1: %s\n\n\n\n", buf1);
-	printf("buf2: %s\n", buf2);
-//	int fd3 = sfs_fopen("test4");
-//	sfs_fopen("test5");
-//	sfs_fopen("test6666612345.exe");
-//	sfs_fopen("test6");
-//	sfs_fopen("test8");
-
-	return EXIT_SUCCESS;
-}
+//int main(void) {
+//
+//	//Test1.1
+//	//Init root dir
+//	mksfs(0);
+//
+////	for (int i = 0; i < 50; i++) {
+////		snprintf(buf, 7, "test%d", i);
+////		sfs_fopen(buf);
+////	}
+//	int fd1 = sfs_fopen("test102");
+////	int fd2 = sfs_fopen("test3");
+////	sfs_remove("test101");
+////	print_root_dir();
+////	print_i_node(read_i_node(super_blk.root_dir_i_node));
+////	print_fd_table();
+//
+//	char buf1[] =
+//			"In computer science, a pointer is a programming language object that stores the memory address of another value located in computer memory. A pointer references a location in memory, and obtaining the value stored at that location is known as dereferencing the pointer. As an analogy, a page number in a book's index could be considered a pointer to the corresponding page; dereferencing such a pointer would be done by flipping to the page with the given page number and reading the text found on that page. The actual format and content of a pointer variable is dependent on the underlying computer "
+//			"architecture. Using pointers significantly improves performance for repetitive operations like traversing iterable data structures, e.g. strings, lookup tables, control tables and tree structures. In particular, it is often much cheaper in time and space to copy and dereference pointers than it is to copy and access the data to which the pointers point. Pointers are also used to hold the addresses of entry points for called subroutines in procedural programming and for run-time linking to dynamic link libraries (DLLs). In object-oriented programming, pointers to functions are used for binding methods, often using what are called"
+//			" virtual method tables.";
+//	char buf2[1260];
+//
+////	sfs_frseek(fd1, 2);
+////	sfs_fwrite(fd1, buf1, 1260);
+//	sfs_fread(fd1, buf2, 1260);
+////
+////	printf("buf1: %s\n\n\n\n", buf1);
+//	printf("buf2: %s\n", buf2);
+////	int fd3 = sfs_fopen("test4");
+////	sfs_fopen("test5");
+////	sfs_fopen("test6666612345.exe");
+////	sfs_fopen("test6");
+////	sfs_fopen("test8");
+//
+//	return EXIT_SUCCESS;
+//}
 
