@@ -7,9 +7,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include "on_disk_data_struct.h"
 #include "in_mem_data_struct.h"
 #include "disk_emu.h"
 
+mem_table_t *last_available;
 int nb_open_files;
 
 int init_fd_table() {
@@ -171,10 +173,51 @@ void print_fd_table() {
 	}
 }
 
-int allocate_blocks(int nb_blocks) {
+int init_mem_table(int fresh) {
 
+	if (fresh) {
+		root_mem_table.blk_index = 2;
+		root_mem_table.next = NULL;
+
+		last_available = &root_mem_table;
+	} else {
+
+	}
 }
 
+//Uses a linked list to find available blocks
+int allocate_blocks(int nb_blocks) {
+
+	int blk_index;
+
+	//Most recently deallocated are at the last_available position
+	if (last_available->next != NULL) {
+		blk_index = last_available->blk_index;
+		last_available = last_available->next;
+	}
+	//If there is only one element in the list, all block indices after the index in the element
+	//are available
+	else {
+		blk_index = last_available->blk_index;
+		last_available->blk_index++;
+	}
+
+	if (blk_index > super_blk.sfs_size) {
+		printf("There are no blocks available.");
+		return -1;
+	}
+
+	return blk_index;
+}
+
+//Deallocates block at input index
 int deallocate_block(int blk) {
 
+	mem_table_t *mem_table_node = (mem_table_t*) malloc(sizeof(mem_table_t));
+
+	mem_table_node->blk_index = blk;
+	mem_table_node->next = last_available;
+	last_available = mem_table_node;
+
+	return 0;
 }

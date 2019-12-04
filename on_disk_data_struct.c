@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include "in_mem_data_struct.h"
 #include "on_disk_data_struct.h"
 #include "disk_emu.h"
 
@@ -299,8 +300,12 @@ int write_root_dir(inode *root_dir_inode, int inode_index) {
 		offset += BLOCK_SIZE;
 	}
 
+	//Deallocate data blocks not used any longer
 	for (int i = nb_blocks_buffer; i < NB_SINGLE_POINTERS; i++) {
-		root_dir_inode->data_blk[i] = -1;
+		if (root_dir_inode->data_blk[i] != -1) {
+			root_dir_inode->data_blk[i] = -1;
+			deallocate_block(root_dir_inode->data_blk[i]);
+		}
 	}
 
 	write_i_node(root_dir_inode, inode_index);	//Save changes to inode on disk

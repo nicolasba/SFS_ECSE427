@@ -38,6 +38,7 @@ void mksfs(int fresh) {
 		print_root_dir();
 	}
 
+	init_mem_table(fresh);
 	init_fd_table();			//Initialize fd table
 }
 
@@ -132,7 +133,8 @@ int sfs_fwseek(int fileID, int loc) {
 int sfs_fread(int fileID, char *buf, int length) {
 
 	fd_table_entry *entry = get_fd_entry(fileID);
-	int i_node;
+	int i_node;//If there is only one element in the list, all block indices after the index in the element
+	//are available
 	inode *file_inode;			//File inode
 	int r_offset;				//Read pointer
 
@@ -172,7 +174,6 @@ int sfs_fread(int fileID, char *buf, int length) {
 	temp_offset = r_offset % super_blk.blk_size;
 	memcpy(buf, concat_buf + temp_offset, length);
 
-	printf("temp offset : %d", temp_offset);
 	entry->r_offset = r_offset + length;
 
 	free(concat_buf);
@@ -290,7 +291,7 @@ int main(void) {
 
 	//Test1.1
 	//Init root dir
-	mksfs(1);
+	mksfs(0);
 
 //	for (int i = 0; i < 50; i++) {
 //		snprintf(buf, 7, "test%d", i);
@@ -309,13 +310,13 @@ int main(void) {
 			" virtual method tables.";
 	char buf2[1260];
 
-	printf("length: %d", strlen(buf1));
+	printf("length: %d\n", strlen(buf1));
 
 //	sfs_frseek(fd1, 2);
-	sfs_fwrite(fd1, buf1, 1260);
+//	sfs_fwrite(fd1, buf1, 1260);
 	sfs_fread(fd1, buf2, 1260);
 //
-	printf("buf1: %s\n\n\n\n", buf1);
+//	printf("buf1: %s\n\n\n\n", buf1);
 	printf("buf2: %s\n", buf2);
 //	int fd3 = sfs_fopen("test4");
 //	sfs_fopen("test5");

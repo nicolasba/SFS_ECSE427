@@ -35,8 +35,9 @@ void print_fd_table();
 struct mem_table_t {
 	int blk_index;
 	mem_table_t *next;
-};
+}root_mem_table;
 
+int init_mem_table();
 int allocate_blocks(int nb_blocks);
 int deallocate_block(int blk);
 
